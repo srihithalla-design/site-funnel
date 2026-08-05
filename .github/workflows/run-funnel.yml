@@ -1,0 +1,41 @@
+name: run-funnel
+
+on:
+  schedule:
+    # Runs every day at 1pm UTC (~8am Central). Edit the cron to taste.
+    - cron: "0 13 * * *"
+  workflow_dispatch: {}  # lets you click "Run workflow" manually in the GitHub UI
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Pull new leads
+        env:
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+        run: python3 generate_leads.py
+
+      - name: Build + deploy demo sites
+        env:
+          NETLIFY_TOKEN: ${{ secrets.NETLIFY_TOKEN }}
+          STRIPE_PAYMENT_LINK: ${{ secrets.STRIPE_PAYMENT_LINK }}
+        run: python3 generate_demo_sites.py
+
+      - name: Commit updated leads.csv
+        run: |
+          git config user.name "funnel-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add leads.csv
+          git diff --staged --quiet || git commit -m "Update leads.csv [automated]"
+          git push
