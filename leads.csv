@@ -1,12 +1,12 @@
 name,category,phone,address,rating,review_snippet,place_id,has_website,email,demo_url
 T&T Barbershop,Barber shop,(815) 556-9838,"16122 S. Route 59 Next to Beggars, Pizza and Constable Tattoo Shop, Plainfield, IL 60586, USA",4.4,"Walked in without an appointment and asked for a fade up from a half. It definitely wasn't a fade, and the trim off the top wasn't even.
 
-I asked him to go back and take more, and I couldn’t tell the ",ChIJsYFghlX1DogRF719uGCVAvk,no,,
-Barber Shop Lounge,Barber shop,(815) 764-6593,"714 Cottage St, Shorewood, IL 60404, USA",4.8,"Great service, great music, great people. No appointments needed. Walk-in and get your cut on first come first serve basis.",ChIJdRS6lC-KDogR6ERHLfCDzuM,no,,
-Kelly's Special Image,Barber shop,(815) 436-4299,"15032 S Illinois St #100, Plainfield, IL 60544, USA",4.9,Theresa is the best! I’ve been using her for my hair cuts for about a year or so now. I got diagnosed with cancer rarer this year and told her I would need to chance it all one of these days. Well tod,ChIJdQHvEB_1DogRzww_6idGp-U,no,,
-Sam's Barber Shop,Barber shop,(317) 838-7053,"1660 E Main St, Plainfield, IN 46168, USA",4.9,Sam did me right. Needed a good cut and that's exactly what he delivered. Will be my new spot to get cut and trimmed when I'm in the area. Call and make appointment!,ChIJB7YTREykbIgRtRAHEJ-ClAc,no,,
+I asked him to go back and take more, and I couldn’t tell the ",ChIJsYFghlX1DogRF719uGCVAvk,no,,https://t-t-barbershop.netlify.app
+Barber Shop Lounge,Barber shop,(815) 764-6593,"714 Cottage St, Shorewood, IL 60404, USA",4.8,"Great service, great music, great people. No appointments needed. Walk-in and get your cut on first come first serve basis.",ChIJdRS6lC-KDogR6ERHLfCDzuM,no,,https://barber-shop-lounge.netlify.app
+Kelly's Special Image,Barber shop,(815) 436-4299,"15032 S Illinois St #100, Plainfield, IL 60544, USA",4.9,Theresa is the best! I’ve been using her for my hair cuts for about a year or so now. I got diagnosed with cancer rarer this year and told her I would need to chance it all one of these days. Well tod,ChIJdQHvEB_1DogRzww_6idGp-U,no,,https://kelly-s-special-image.netlify.app
+Sam's Barber Shop,Barber shop,(317) 838-7053,"1660 E Main St, Plainfield, IN 46168, USA",4.9,Sam did me right. Needed a good cut and that's exactly what he delivered. Will be my new spot to get cut and trimmed when I'm in the area. Call and make appointment!,ChIJB7YTREykbIgRtRAHEJ-ClAc,no,,https://sam-s-barber-shop.netlify.app
 Hairhead Barbershop,Barber shop,(331) 286-0642,"2735 Hassert Blvd Unit 183, Naperville, IL 60564, USA",5,"We had a wonderful experience at this salon. The stylist was friendly, professional, and attentive from the moment we walked in. I highly recommend this salon to anyone looking for high-quality servic",ChIJJ4GqJGr3DogRlJo3AKPcisQ,no,,https://hairhead-barbershop.netlify.app
-Acapulco Bakery Inc,Bakery,(815) 729-1737,"852 Sharp Dr # F, Shorewood, IL 60404, USA",4,Very very good food and it is super cheap. We got like 5 items for $6. Also cashier is cool.,ChIJATS3hk-KDogRIPzrsl8YW-I,no,,
+Acapulco Bakery Inc,Bakery,(815) 729-1737,"852 Sharp Dr # F, Shorewood, IL 60404, USA",4,Very very good food and it is super cheap. We got like 5 items for $6. Also cashier is cool.,ChIJATS3hk-KDogRIPzrsl8YW-I,no,,https://acapulco-bakery-inc.netlify.app
 Hot and Crusty Sourdough Co,Bakery,(630) 559-6555,"4705 Chapman Dr, Plainfield, IL 60586, USA",,,ChIJJ8G_1ySLDogRDQFqh8fI6_8,no,,
 Krema Patisserie,Bakery,,"14220 US-30, Plainfield, IL 60544, USA",,,ChIJ_dkGSQD1DogRgA0pg3DBviI,no,,
 Treats by alaila,Bakery,(815) 286-1254,"Joliet Rd, Plainfield, IL 60544, USA",,,ChIJl2u52gf1DogRjrzeMaE0DmY,no,,
@@ -31,3 +31,5 @@ Knead Dough Co Turano Bread,Bakery,(630) 972-0404,"556 St James Gate, Bolingbroo
 Little tide for back up, no overheating parking.",ChIJM9UE9ZhbDogR5fqWrYjsvHg,no,,
 Bakery,,,"Bakery, Romeoville, IL 60446, USA",,,ChIJH-ugZEpeDogRqc6ke_OOcVA,no,,
 DulcebyIsa,Pastry Shop,(630) 770-9396,"708 S Weber Rd, Romeoville, IL 60446, USA",,,ChIJxUGPW5VfDogRtJBqc5Ugd7E,no,,
+Bakery,,,"Bakery, Plainfield, IL 60585, USA",,,ChIJpynl0cz1DogRmwJQNWvZgnY,no,,
+Greenwood Lawn Services,General Contractor,(630) 420-9919,"Graver Estates, 13251 Vicky St, Plainfield, IL 60585, USA",4.3,We’ve used Greenwood for years. They do an excellent job!,ChIJLdpHybv1DogRJDzNygHiSx0,no,,
