@@ -1,22 +1,24 @@
 """
 generate_leads.py
 
-Pulls local businesses with NO website from Google Places API and writes leads.csv.
+Pulls local businesses with NO website from Google Places API and writes
+leads.csv. MERGES with any existing leads.csv instead of overwriting it --
+businesses already in the file (matched by place_id) are left untouched,
+so their demo_url / email / status never get wiped by a later run. Only
+genuinely new businesses get appended.
 
 SETUP (one-time, ~10 min):
 1. Go to console.cloud.google.com -> create a project (free)
 2. Enable "Places API (New)"
 3. Create an API key (APIs & Services -> Credentials)
 4. Places API Pro-tier SKUs (Text Search, Nearby Search) give 5,000 free
-   events/month as of 2026 -- this script will use a tiny fraction of that
-   for a few hundred leads.
+   events/month as of 2026 -- this script will use a tiny fraction of that.
 5. pip install requests --break-system-packages
 6. Set your API key below or as an env var: export GOOGLE_PLACES_API_KEY=xxxx
 7. Edit SEARCH_QUERIES and run: python3 generate_leads.py
 
 Output: leads.csv with columns:
-  name, category, phone, address, rating, review_snippet, place_id, has_website
-(has_website is always "no" -- rows WITH a website are filtered out automatically)
+  name, category, phone, address, rating, review_snippet, place_id, has_website, email, demo_url
 """
 
 import os
@@ -27,7 +29,8 @@ import requests
 API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "PASTE_YOUR_KEY_HERE")
 
 # Edit this list: one query per business type + area you're targeting.
-# Keep it specific -- "barber shop in Plainfield IL" beats "business in Plainfield IL".
+# Once your first batch is mostly deployed, widen this to new towns/categories
+# to keep fresh leads flowing in.
 SEARCH_QUERIES = [
     "barber shop in Plainfield IL",
     "bakery in Plainfield IL",
@@ -47,6 +50,18 @@ FIELD_MASK_DETAILS = (
     "id,displayName,formattedAddress,nationalPhoneNumber,rating,"
     "reviews,websiteUri,primaryTypeDisplayName"
 )
+
+FIELDNAMES = ["name", "category", "phone", "address", "rating",
+              "review_snippet", "place_id", "has_website", "email", "demo_url"]
+
+
+def load_existing_leads():
+    if not os.path.exists("leads.csv"):
+        return {}, []
+    with open("leads.csv", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    by_place_id = {r["place_id"]: r for r in rows if r.get("place_id")}
+    return by_place_id, rows
 
 
 def search_places(query):
@@ -79,10 +94,14 @@ def main():
     if API_KEY == "PASTE_YOUR_KEY_HERE":
         raise SystemExit("Set GOOGLE_PLACES_API_KEY before running.")
 
-    rows = []
-    seen_ids = set()
+    existing_by_id, existing_rows = load_existing_leads()
+    print(f"Loaded {len(existing_rows)} existing leads from leads.csv (will not be touched).")
+
+    new_rows = []
+    seen_ids = set(existing_by_id.keys())
     total_found = 0
     total_with_website = 0
+    total_already_known = 0
 
     for query in SEARCH_QUERIES:
         print(f"Searching: {query}")
@@ -97,16 +116,19 @@ def main():
 
         for p in places:
             place_id = p.get("id")
-            if not place_id or place_id in seen_ids:
+            if not place_id:
+                continue
+            if place_id in seen_ids:
+                if place_id in existing_by_id:
+                    total_already_known += 1
                 continue
             seen_ids.add(place_id)
 
-            # Skip anything that already has a website -- not our lead
             if p.get("websiteUri"):
                 total_with_website += 1
                 continue
 
-            time.sleep(0.1)  # be polite to the API
+            time.sleep(0.1)
             try:
                 details = get_details(place_id)
             except requests.HTTPError:
@@ -114,14 +136,14 @@ def main():
 
             if details.get("websiteUri"):
                 total_with_website += 1
-                continue  # double-check at the details level
+                continue
 
             reviews = details.get("reviews", [])
             snippet = ""
             if reviews:
                 snippet = reviews[0].get("text", {}).get("text", "")[:200]
 
-            rows.append({
+            new_rows.append({
                 "name": details.get("displayName", {}).get("text", ""),
                 "category": details.get("primaryTypeDisplayName", {}).get("text", ""),
                 "phone": details.get("nationalPhoneNumber", ""),
@@ -130,25 +152,21 @@ def main():
                 "review_snippet": snippet,
                 "place_id": place_id,
                 "has_website": "no",
-                "email": "",  # fill manually or via a separate email-finder step
-                "demo_url": "",  # filled in by generate_demo_sites.py
+                "email": "",
+                "demo_url": "",
             })
 
-    print(f"\nSummary: {total_found} total places seen, {total_with_website} already had a website, {len(rows)} usable no-website leads.")
+    print(f"\nSummary: {total_found} places seen, {total_already_known} already in leads.csv, "
+          f"{total_with_website} had a website, {len(new_rows)} brand-new leads added.")
 
-    fieldnames = ["name", "category", "phone", "address", "rating",
-                  "review_snippet", "place_id", "has_website", "email", "demo_url"]
+    all_rows = existing_rows + new_rows
 
     with open("leads.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(all_rows)
 
-    print(f"leads.csv written with {len(rows)} rows.")
-    if len(rows) == 0:
-        print("No leads this run -- either every business found already has a")
-        print("website, or the API key/queries need adjusting. Widen")
-        print("SEARCH_QUERIES to more categories/towns and try again.")
+    print(f"leads.csv now has {len(all_rows)} total leads ({len(new_rows)} new this run).")
 
 
 if __name__ == "__main__":
