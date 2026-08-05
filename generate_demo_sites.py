@@ -5,17 +5,19 @@ Reads leads.csv (from generate_leads.py), builds one demo HTML site per
 business from a template, and deploys each to Netlify automatically via
 the Netlify API. Writes the live URL back into leads.csv.
 
+Netlify rate-limits how fast a fresh account can create new sites/deploys
+("API Deploy rate limit surpassed"). Rather than fight that with clever
+retries, this script only deploys a small batch per run and leaves the
+rest for the next scheduled run (it always skips rows that already have
+a demo_url, so nothing is lost or duplicated -- it just catches up over
+a few days).
+
 SETUP (one-time, ~5 min):
 1. Create a free Netlify account -> User settings -> Applications ->
    New access token
 2. pip install requests --break-system-packages
 3. export NETLIFY_TOKEN=xxxx
 4. python3 generate_demo_sites.py
-
-Netlify's API deploy flow needs a zip of the site per deploy. This script
-builds a single index.html per lead and deploys it as its own Netlify site
-(one site per business = one clean subdomain per demo, e.g.
-lincoln-way-barber-shop.netlify.app).
 """
 
 import os
@@ -27,6 +29,14 @@ import requests
 
 NETLIFY_TOKEN = os.environ.get("NETLIFY_TOKEN", "PASTE_YOUR_TOKEN_HERE")
 NETLIFY_API = "https://api.netlify.com/api/v1"
+
+# How many NEW sites to create per run. Keep this low -- Netlify rate-limits
+# rapid site creation hard on fresh accounts. Leftover leads roll over to
+# the next scheduled run automatically.
+MAX_DEPLOYS_PER_RUN = 5
+SECONDS_BETWEEN_DEPLOYS = 5
+RETRY_ON_429 = 2          # how many times to retry a single deploy on rate-limit
+RETRY_WAIT_SECONDS = 20   # how long to wait before each retry
 
 TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -128,16 +138,25 @@ def build_html(row):
 
 
 def deploy_to_netlify(site_name, html):
-    # 1. Create the site
-    resp = requests.post(
-        f"{NETLIFY_API}/sites",
-        headers={"Authorization": f"Bearer {NETLIFY_TOKEN}"},
-        json={"name": site_name},
-        timeout=20,
-    )
-    if resp.status_code not in (200, 201):
-        print(f"  site create failed for {site_name}: {resp.text[:200]}")
-        return None
+    attempt = 0
+    while True:
+        # 1. Create the site
+        resp = requests.post(
+            f"{NETLIFY_API}/sites",
+            headers={"Authorization": f"Bearer {NETLIFY_TOKEN}"},
+            json={"name": site_name},
+            timeout=20,
+        )
+        if resp.status_code == 429 and attempt < RETRY_ON_429:
+            attempt += 1
+            print(f"  rate-limited, waiting {RETRY_WAIT_SECONDS}s (retry {attempt}/{RETRY_ON_429})")
+            time.sleep(RETRY_WAIT_SECONDS)
+            continue
+        if resp.status_code not in (200, 201):
+            print(f"  site create failed for {site_name}: {resp.text[:200]}")
+            return None
+        break
+
     site = resp.json()
     site_id = site["site_id"]
 
@@ -172,14 +191,18 @@ def main():
 
     if not rows:
         print("leads.csv has no rows yet -- nothing to deploy this run.")
-        print("This usually means generate_leads.py's search queries didn't")
-        print("turn up any no-website businesses this time. Check that step's")
-        print("log output above, and see SEARCH_QUERIES in generate_leads.py.")
         return
+
+    deployed_this_run = 0
+    remaining = sum(1 for r in rows if not r.get("demo_url"))
+    print(f"{remaining} leads still need a demo. Deploying up to {MAX_DEPLOYS_PER_RUN} this run.")
 
     for i, row in enumerate(rows):
         if row.get("demo_url"):
             continue  # already built
+        if deployed_this_run >= MAX_DEPLOYS_PER_RUN:
+            break
+
         html = build_html(row)
         slug = slugify(row["name"]) or f"demo-{i}"
         print(f"Deploying {row['name']} -> {slug}")
@@ -187,14 +210,17 @@ def main():
         if url:
             row["demo_url"] = url
             print(f"  live: {url}")
-        time.sleep(1)  # avoid hammering Netlify's API
+        deployed_this_run += 1
+        time.sleep(SECONDS_BETWEEN_DEPLOYS)
 
     with open("leads.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
 
-    print("\nDone. leads.csv updated with live demo_url per business.")
+    still_left = sum(1 for r in rows if not r.get("demo_url"))
+    print(f"\nDone this run. {still_left} leads still without a demo -- they'll")
+    print("pick up automatically on the next scheduled run.")
 
 
 if __name__ == "__main__":
