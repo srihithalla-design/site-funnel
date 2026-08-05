@@ -57,6 +57,8 @@ def search_places(query):
     }
     body = {"textQuery": query}
     resp = requests.post(SEARCH_URL, json=body, headers=headers, timeout=20)
+    if resp.status_code != 200:
+        print(f"  API error {resp.status_code}: {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json().get("places", [])
 
@@ -67,6 +69,8 @@ def get_details(place_id):
         "X-Goog-FieldMask": FIELD_MASK_DETAILS,
     }
     resp = requests.get(DETAILS_URL.format(place_id=place_id), headers=headers, timeout=20)
+    if resp.status_code != 200:
+        print(f"  details API error {resp.status_code}: {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json()
 
@@ -77,14 +81,19 @@ def main():
 
     rows = []
     seen_ids = set()
+    total_found = 0
+    total_with_website = 0
 
     for query in SEARCH_QUERIES:
         print(f"Searching: {query}")
         try:
             places = search_places(query)
         except requests.HTTPError as e:
-            print(f"  skipped ({e})")
+            print(f"  skipped query ({e})")
             continue
+
+        print(f"  {len(places)} results returned")
+        total_found += len(places)
 
         for p in places:
             place_id = p.get("id")
@@ -94,6 +103,7 @@ def main():
 
             # Skip anything that already has a website -- not our lead
             if p.get("websiteUri"):
+                total_with_website += 1
                 continue
 
             time.sleep(0.1)  # be polite to the API
@@ -103,6 +113,7 @@ def main():
                 continue
 
             if details.get("websiteUri"):
+                total_with_website += 1
                 continue  # double-check at the details level
 
             reviews = details.get("reviews", [])
@@ -123,20 +134,21 @@ def main():
                 "demo_url": "",  # filled in by generate_demo_sites.py
             })
 
+    print(f"\nSummary: {total_found} total places seen, {total_with_website} already had a website, {len(rows)} usable no-website leads.")
+
+    fieldnames = ["name", "category", "phone", "address", "rating",
+                  "review_snippet", "place_id", "has_website", "email", "demo_url"]
+
     with open("leads.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()) if rows else [
-            "name", "category", "phone", "address", "rating",
-            "review_snippet", "place_id", "has_website", "email", "demo_url"
-        ])
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"\nDone. {len(rows)} no-website leads written to leads.csv")
-    print("Next: fill in the 'email' column (a business's site-less listing usually")
-    print("still has a phone -- a quick reverse lookup or their Facebook/Instagram")
-    print("bio often has an email; this is the one place a little human judgment")
-    print("speeds things up, but it's optional -- you can also mail-merge by phone")
-    print("via a texting API instead of email if you'd rather stay 100% address-free.")
+    print(f"leads.csv written with {len(rows)} rows.")
+    if len(rows) == 0:
+        print("No leads this run -- either every business found already has a")
+        print("website, or the API key/queries need adjusting. Widen")
+        print("SEARCH_QUERIES to more categories/towns and try again.")
 
 
 if __name__ == "__main__":
