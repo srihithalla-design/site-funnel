@@ -3,14 +3,15 @@ generate_demo_sites.py
 
 Reads leads.csv (from generate_leads.py), builds one demo HTML site per
 business from a template, and deploys each to Netlify automatically via
-the Netlify API. Writes the live URL back into leads.csv.
+the Netlify API (using Netlify's "digest deploy" method -- the same one
+their own dashboard/CLI uses, so files get served with the correct
+content-type and actually render instead of showing as raw text).
 
-Netlify rate-limits how fast a fresh account can create new sites/deploys
-("API Deploy rate limit surpassed"). Rather than fight that with clever
-retries, this script only deploys a small batch per run and leaves the
-rest for the next scheduled run (it always skips rows that already have
-a demo_url, so nothing is lost or duplicated -- it just catches up over
-a few days).
+Netlify rate-limits how fast a fresh account can create new sites/deploys.
+Rather than fight that with clever retries, this script only deploys a
+small batch per run and leaves the rest for the next scheduled run (it
+always skips rows that already have a demo_url, so nothing is lost or
+duplicated -- it just catches up over a few days).
 
 SETUP (one-time, ~5 min):
 1. Create a free Netlify account -> User settings -> Applications ->
@@ -22,9 +23,8 @@ SETUP (one-time, ~5 min):
 
 import os
 import csv
-import io
 import time
-import zipfile
+import hashlib
 import requests
 
 NETLIFY_TOKEN = os.environ.get("NETLIFY_TOKEN", "PASTE_YOUR_TOKEN_HERE")
@@ -137,47 +137,63 @@ def build_html(row):
     )
 
 
-def deploy_to_netlify(site_name, html):
+def post_with_retry(url, **kwargs):
     attempt = 0
     while True:
-        # 1. Create the site
-        resp = requests.post(
-            f"{NETLIFY_API}/sites",
-            headers={"Authorization": f"Bearer {NETLIFY_TOKEN}"},
-            json={"name": site_name},
-            timeout=20,
-        )
+        resp = requests.post(url, timeout=kwargs.pop("timeout", 20), **kwargs)
         if resp.status_code == 429 and attempt < RETRY_ON_429:
             attempt += 1
             print(f"  rate-limited, waiting {RETRY_WAIT_SECONDS}s (retry {attempt}/{RETRY_ON_429})")
             time.sleep(RETRY_WAIT_SECONDS)
             continue
-        if resp.status_code not in (200, 201):
-            print(f"  site create failed for {site_name}: {resp.text[:200]}")
-            return None
-        break
+        return resp
 
+
+def deploy_to_netlify(site_name, html):
+    # 1. Create the site
+    resp = post_with_retry(
+        f"{NETLIFY_API}/sites",
+        headers={"Authorization": f"Bearer {NETLIFY_TOKEN}"},
+        json={"name": site_name},
+    )
+    if resp.status_code not in (200, 201):
+        print(f"  site create failed for {site_name}: {resp.text[:200]}")
+        return None
     site = resp.json()
     site_id = site["site_id"]
 
-    # 2. Zip the single index.html and deploy it
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("index.html", html)
-    buf.seek(0)
+    # 2. Digest deploy: tell Netlify what file + hash we want to publish
+    content_bytes = html.encode("utf-8")
+    sha1 = hashlib.sha1(content_bytes).hexdigest()
 
-    deploy_resp = requests.post(
+    deploy_resp = post_with_retry(
         f"{NETLIFY_API}/sites/{site_id}/deploys",
         headers={
             "Authorization": f"Bearer {NETLIFY_TOKEN}",
-            "Content-Type": "application/zip",
+            "Content-Type": "application/json",
         },
-        data=buf.read(),
-        timeout=30,
+        json={"files": {"/index.html": sha1}},
     )
     if deploy_resp.status_code not in (200, 201):
-        print(f"  deploy failed for {site_name}: {deploy_resp.text[:200]}")
+        print(f"  deploy create failed for {site_name}: {deploy_resp.text[:200]}")
         return None
+    deploy = deploy_resp.json()
+    deploy_id = deploy["id"]
+
+    # 3. Upload the actual file content if Netlify says it needs it
+    if sha1 in deploy.get("required", []):
+        upload_resp = requests.put(
+            f"{NETLIFY_API}/deploys/{deploy_id}/files/index.html",
+            headers={
+                "Authorization": f"Bearer {NETLIFY_TOKEN}",
+                "Content-Type": "application/octet-stream",
+            },
+            data=content_bytes,
+            timeout=30,
+        )
+        if upload_resp.status_code not in (200, 201):
+            print(f"  file upload failed for {site_name}: {upload_resp.text[:200]}")
+            return None
 
     return site.get("ssl_url") or site.get("url")
 
