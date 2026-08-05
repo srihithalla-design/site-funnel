@@ -170,6 +170,13 @@ def main():
     with open("leads.csv", newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
+    if not rows:
+        print("leads.csv has no rows yet -- nothing to deploy this run.")
+        print("This usually means generate_leads.py's search queries didn't")
+        print("turn up any no-website businesses this time. Check that step's")
+        print("log output above, and see SEARCH_QUERIES in generate_leads.py.")
+        return
+
     for i, row in enumerate(rows):
         if row.get("demo_url"):
             continue  # already built
